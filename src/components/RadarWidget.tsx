@@ -6,17 +6,19 @@ import { Globe, Crosshair } from 'lucide-react';
 interface RadarWidgetProps {
   pins: SpideyPin[];
   center: { lat: number; lng: number };
-  zoom: number;
-  onZoomGlobal: () => void;
-  onCenterNeighborhood: () => void;
+  zoom?: number;
+  onZoomGlobal?: () => void;
+  onCenterNeighborhood?: () => void;
+  onSelectTarget?: (pin: SpideyPin) => void;
 }
 
 export const RadarWidget: React.FC<RadarWidgetProps> = ({
   pins,
   center,
-  zoom,
+  zoom = 3,
   onZoomGlobal,
-  onCenterNeighborhood
+  onCenterNeighborhood,
+  onSelectTarget
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
@@ -106,6 +108,7 @@ export const RadarWidget: React.FC<RadarWidgetProps> = ({
 
       // Radar Leading Beam
       ctx.beginPath();
+      ctx.moveTo(centerPt, centerPt);
       ctx.lineTo(centerPt + radius * Math.cos(angle), centerPt + radius * Math.sin(angle));
       ctx.strokeStyle = '#96e0f7';
       ctx.lineWidth = 1.5;
@@ -122,10 +125,14 @@ export const RadarWidget: React.FC<RadarWidgetProps> = ({
 
       // Draw pins on radar
       pins.forEach((pin) => {
-        const dist = getDistanceKm(center.lat, center.lng, pin.lat, pin.lng);
+        const pinLat = pin.lat ?? pin.location?.lat;
+        const pinLng = pin.lng ?? pin.location?.lng;
+        if (pinLat == null || pinLng == null) return;
+
+        const dist = getDistanceKm(center.lat, center.lng, pinLat, pinLng);
         if (dist > maxRangeKm) return;
 
-        const bearing = getBearing(center.lat, center.lng, pin.lat, pin.lng) - Math.PI / 2;
+        const bearing = getBearing(center.lat, center.lng, pinLat, pinLng) - Math.PI / 2;
         const normalizedDist = Math.pow(dist / maxRangeKm, 0.85);
         const blipRadius = normalizedDist * (radius - 8);
 
@@ -134,9 +141,10 @@ export const RadarWidget: React.FC<RadarWidgetProps> = ({
 
         // Blip color by category
         let color = '#00ff50';
-        if (pin.pinType === 'rumored') color = '#ff4040';
-        if (pin.pinType === 'trailer') color = '#ffffff';
-        if (pin.pinType === 'event') color = '#96e0f7';
+        const type = (pin.pinTypeOverride || pin.pinType || pin.type || '').toLowerCase();
+        if (type === 'rumored') color = '#ff4040';
+        if (type === 'watchparty' || type.includes('watch')) color = '#ffcc22';
+        if (type === 'event') color = '#96e0f7';
 
         ctx.beginPath();
         ctx.arc(bx, by, 2, 0, Math.PI * 2);
@@ -176,7 +184,7 @@ export const RadarWidget: React.FC<RadarWidgetProps> = ({
         <button
           onClick={() => {
             soundManager.playJingle();
-            onZoomGlobal();
+            onZoomGlobal?.();
           }}
           title="Zoom to Global View"
           className="absolute -top-1 -right-1 w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] text-[#96e0f7] hover:text-black border border-[#09a4c7] rounded-full flex items-center justify-center shadow-lg transition-colors cursor-pointer"
@@ -188,7 +196,7 @@ export const RadarWidget: React.FC<RadarWidgetProps> = ({
         <button
           onClick={() => {
             soundManager.playJingle();
-            onCenterNeighborhood();
+            onCenterNeighborhood?.();
           }}
           title="Center on Neighborhood"
           className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] text-[#96e0f7] hover:text-black border border-[#09a4c7] rounded-full flex items-center justify-center shadow-lg transition-colors cursor-pointer"
