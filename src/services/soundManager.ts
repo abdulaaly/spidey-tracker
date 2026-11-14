@@ -88,6 +88,12 @@ class SoundManager {
     return Boolean(this.ringtoneAudio && !this.ringtoneAudio.paused);
   }
 
+  public onRingtoneEnded(callback: () => void) {
+    if (this.ringtoneAudio) {
+      this.ringtoneAudio.onended = callback;
+    }
+  }
+
   /**
    * 8-Bit Web Audio Beep
    */
