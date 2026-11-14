@@ -118,6 +118,9 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({
                 <img
                   src={thumb}
                   alt={pin.title}
+                  onError={(e) => {
+                    e.currentTarget.src = '/images/home_ent/watch_party_card_thm.jpg';
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 />
               </div>

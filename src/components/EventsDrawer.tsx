@@ -69,6 +69,9 @@ export const EventsDrawer: React.FC<EventsDrawerProps> = ({
                   <img
                     src={thumb}
                     alt={event.name}
+                    onError={(e) => {
+                      e.currentTarget.src = '/images/home_ent/watch_party_card_thm.jpg';
+                    }}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                   />
                   {videoAttachment && (
