@@ -15,8 +15,6 @@ export const PreloaderModal: React.FC<PreloaderModalProps> = ({
   const [progress, setProgress] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
 
-  if (!isOpen) return null;
-
   const lines = [
     "INITIALIZING SPIDEY TRACKER v4.2.0...",
     "BOOTING CORE SERVICES [OK]",
@@ -54,6 +52,8 @@ export const PreloaderModal: React.FC<PreloaderModalProps> = ({
     }
     onComplete(enable);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center p-4 select-none">
