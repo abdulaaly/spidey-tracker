@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --hud-cyan: #96e0f7;
+  --hud-cyan-dark: #09a4c7;
+  --hud-bg-dark: #0e1c3b;
+  --hud-gold: #f8b800;
+  --bb-step: 2px;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  color: #fff;
+  font-family: 'Chakra Petch', 'Share Tech Mono', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* 15-Slice Tactical Grid Frame */
+.fifteen-slice-frame {
+  display: grid;
+  grid-template-columns: 36px 1fr 36px;
+  grid-template-rows: 36px 1fr 19px 50px 7px;
+  width: 100vw;
+  height: 100vh;
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+}
+
+.fifteen-slice-frame > * {
+  pointer-events: auto;
+}
+
+.frame-r1c1, .frame-r1c3 {
+  background-size: 36px 36px;
+  background-repeat: no-repeat;
+}
+.frame-r1c2 {
+  background-size: 92px 36px;
+  background-repeat: repeat-x;
+}
+.frame-r2c1, .frame-r2c3 {
+  background-size: 36px 100px;
+  background-repeat: repeat-y;
+}
+.frame-r2c2 {
+  pointer-events: none;
+}
+.frame-r3c1, .frame-r3c3 {
+  background-size: 36px 19px;
+  background-repeat: no-repeat;
+}
+.frame-r3c2 {
+  background-size: 52px 19px;
+  background-repeat: repeat-x;
+}
+.frame-r4c1, .frame-r4c3 {
+  background-size: 36px 50px;
+  background-repeat: no-repeat;
+}
+.frame-r4c2 {
+  background-size: 95px 50px;
+  background-repeat: repeat-x;
+}
+.frame-r5c1, .frame-r5c3 {
+  background-size: 36px 7px;
+  background-repeat: no-repeat;
+}
+.frame-r5c2 {
+  background-size: 27px 7px;
+  background-repeat: repeat-x;
+}
+
+/* Mathematical 8-Bit Pixel Stepped Bevels */
+.bit-border-3step {
+  --bb-step: 2px;
+  --bb-frame: #000000;
+  --bb-frame-hover: var(--bb-frame);
+  --bb-frame-opacity-base: 1;
+  --bb-fill: transparent;
+  --bb-fill-hover: var(--bb-fill);
+  --bb-fill-opacity-base: 1;
+  --bb-text: #000000;
+  --bb-text-hover: var(--bb-text);
+  position: relative;
+  background: transparent;
+  border: none;
+  color: var(--bb-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  user-select: none;
+  isolation: isolate;
+  transition: all 160ms ease;
+  clip-path: polygon(
+    0 calc(2 * var(--bb-step)),
+    var(--bb-step) calc(2 * var(--bb-step)),
+    var(--bb-step) var(--bb-step),
+    calc(2 * var(--bb-step)) var(--bb-step),
+    calc(2 * var(--bb-step)) 0,
+    calc(100% - 2 * var(--bb-step)) 0,
+    calc(100% - 2 * var(--bb-step)) var(--bb-step),
+    calc(100% - var(--bb-step)) var(--bb-step),
+    calc(100% - var(--bb-step)) calc(2 * var(--bb-step)),
+    100% calc(2 * var(--bb-step)),
+    100% calc(100% - 2 * var(--bb-step)),
+    calc(100% - var(--bb-step)) calc(100% - 2 * var(--bb-step)),
+    calc(100% - var(--bb-step)) calc(100% - var(--bb-step)),
+    calc(100% - 2 * var(--bb-step)) calc(100% - var(--bb-step)),
+    calc(100% - 2 * var(--bb-step)) 100%,
+    calc(2 * var(--bb-step)) 100%,
+    calc(2 * var(--bb-step)) calc(100% - var(--bb-step)),
+    var(--bb-step) calc(100% - var(--bb-step)),
+    var(--bb-step) calc(100% - 2 * var(--bb-step)),
+    0 calc(100% - 2 * var(--bb-step))
+  );
+}
+
+.bit-border-2step {
+  --bb-step: 2px;
+  --bb-frame: #000000;
+  position: relative;
+  background: transparent;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  clip-path: polygon(
+    0 var(--bb-step),
+    var(--bb-step) var(--bb-step),
+    var(--bb-step) 0,
+    calc(100% - var(--bb-step)) 0,
+    calc(100% - var(--bb-step)) var(--bb-step),
+    100% var(--bb-step),
+    100% calc(100% - var(--bb-step)),
+    calc(100% - var(--bb-step)) calc(100% - var(--bb-step)),
+    calc(100% - var(--bb-step)) 100%,
+    var(--bb-step) 100%,
+    var(--bb-step) calc(100% - var(--bb-step)),
+    0 calc(100% - var(--bb-step))
+  );
+}
+
+.bit-border-2top3bottom {
+  --bb-step: 2px;
+  clip-path: polygon(
+    0 var(--bb-step),
+    var(--bb-step) var(--bb-step),
+    var(--bb-step) 0,
+    calc(100% - var(--bb-step)) 0,
+    calc(100% - var(--bb-step)) var(--bb-step),
+    100% var(--bb-step),
+    100% calc(100% - 2 * var(--bb-step)),
+    calc(100% - var(--bb-step)) calc(100% - 2 * var(--bb-step)),
+    calc(100% - var(--bb-step)) calc(100% - var(--bb-step)),
+    calc(100% - 2 * var(--bb-step)) calc(100% - var(--bb-step)),
+    calc(100% - 2 * var(--bb-step)) 100%,
+    calc(2 * var(--bb-step)) 100%,
+    calc(2 * var(--bb-step)) calc(100% - var(--bb-step)),
+    var(--bb-step) calc(100% - var(--bb-step)),
+    var(--bb-step) calc(100% - 2 * var(--bb-step)),
+    0 calc(100% - 2 * var(--bb-step))
+  );
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.4);
+}
+::-webkit-scrollbar-thumb {
+  background: #09a4c7;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #96e0f7;
+}
+
+/* Leaflet Dark Custom Overrides */
+.leaflet-container {
+  background: #06080e !important;
+  font-family: inherit;
+}
+.leaflet-bar {
+  border: none !important;
+  box-shadow: none !important;
+}
+.leaflet-bar a {
+  background-color: #0e1c3b !important;
+  color: #96e0f7 !important;
+  border-bottom: 1px solid #09a4c7 !important;
+}
+.leaflet-bar a:hover {
+  background-color: #09a4c7 !important;
+  color: #000 !important;
+}
+
+/* Radar Sweep */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Ticker Marquee */
+@keyframes ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-marquee {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker-scroll 35s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
