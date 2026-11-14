@@ -16,6 +16,10 @@ export interface SpideyPin {
   watchPartyCopy?: string;
   watchPartyCtaText?: string;
   watchPartyLink?: string;
+  watchPartyDateTime?: string;
+  watchPartySaveDateLabel?: string;
+  watchPartySaveDateIcons?: string[];
+  [key: string]: any;
 }
 
 export interface EventItem {
@@ -41,10 +45,11 @@ export interface EventItem {
     images?: string[];
     videos?: Array<{
       src: string;
-      title: string;
+      title?: string;
       videoPoster?: string;
     }>;
   };
+  [key: string]: any;
 }
 
 export interface VillainItem {

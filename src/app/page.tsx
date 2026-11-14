@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { SpideyPin, EventItem, VillainItem, VideoItem, FilterState } from '../types';
+import { INITIAL_PINS, INITIAL_EVENTS, INITIAL_VILLAINS, INITIAL_VIDEOS } from '../data/initialData';
 import { soundManager } from '../services/soundManager';
 import { FifteenSliceFrame } from '../components/FifteenSliceFrame';
 import { MainUIPanel } from '../components/MainUIPanel';
@@ -30,10 +31,10 @@ const MapEngine = dynamic(
 );
 
 export default function Home() {
-  const [pins, setPins] = useState<SpideyPin[]>([]);
-  const [events, setEvents] = useState<EventItem[]>([]);
-  const [villains, setVillains] = useState<VillainItem[]>([]);
-  const [videos, setVideos] = useState<VideoItem[]>([]);
+  const [pins, setPins] = useState<SpideyPin[]>(INITIAL_PINS);
+  const [events, setEvents] = useState<EventItem[]>(INITIAL_EVENTS);
+  const [villains, setVillains] = useState<VillainItem[]>(INITIAL_VILLAINS);
+  const [videos, setVideos] = useState<VideoItem[]>(INITIAL_VIDEOS);
   const [tickerText, setTickerText] = useState<string>(
     'WELCOME TO THE SPIDEY TRACKER • INTERACT WITH THE MAP TO VIEW SPIDER-MAN SIGHTINGS ALL OVER THE WORLD • REPORT YOUR SIGHTINGS ON X'
   );
