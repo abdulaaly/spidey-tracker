@@ -2,10 +2,11 @@ export type PinType = 'confirmed' | 'rumored' | 'trailer' | 'watchParty' | 'even
 
 export interface SpideyPin {
   id: string;
-  pinType: PinType;
+  pinType?: PinType;
+  type?: string;
   pinTypeOverride?: PinType;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   title: string;
   imageSrc?: string;
   cardThumbImg?: string;
@@ -19,6 +20,32 @@ export interface SpideyPin {
   watchPartyDateTime?: string;
   watchPartySaveDateLabel?: string;
   watchPartySaveDateIcons?: string[];
+  location?: any;
+  attachments?: {
+    images?: string[];
+    videos?: Array<{
+      src: string;
+      title?: string;
+      videoPoster?: string;
+    }>;
+  };
+  description?: string;
+  datetime?: string;
+  highlighted?: boolean;
+  hidePin?: boolean;
+  [key: string]: any;
+}
+
+export interface UserReport {
+  id: string;
+  title: string;
+  type?: string;
+  address?: string;
+  lat: number;
+  lng: number;
+  description?: string;
+  timestamp?: string;
+  imageUrl?: string;
   [key: string]: any;
 }
 
