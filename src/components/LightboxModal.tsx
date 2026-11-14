@@ -1,15 +1,17 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { VideoItem } from '../types';
 import { soundManager } from '../services/soundManager';
-import { X, Play, Film, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Play, Film } from 'lucide-react';
 
 interface LightboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   mediaType: 'youtube' | 'video' | 'image';
-  mediaSrc: string;
+  mediaSrc?: string;
+  src?: string;
   title: string;
   videoList?: VideoItem[];
+  playlist?: VideoItem[];
   onSelectVideo?: (v: VideoItem) => void;
 }
 
@@ -18,11 +20,16 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
   onClose,
   mediaType,
   mediaSrc,
+  src,
   title,
-  videoList = [],
+  videoList,
+  playlist,
   onSelectVideo
 }) => {
   if (!isOpen) return null;
+
+  const activeSrc = mediaSrc || src || '';
+  const activeList = videoList || playlist || [];
 
   // Convert regular YouTube link to embed link
   const getEmbedUrl = (url: string) => {
@@ -64,7 +71,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
         <div className="relative w-full aspect-video bg-black flex items-center justify-center">
           {mediaType === 'youtube' && (
             <iframe
-              src={getEmbedUrl(mediaSrc)}
+              src={getEmbedUrl(activeSrc)}
               title={title}
               className="w-full h-full border-none"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -74,7 +81,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
 
           {mediaType === 'video' && (
             <video
-              src={mediaSrc}
+              src={activeSrc}
               controls
               autoPlay
               className="w-full h-full object-contain"
@@ -83,7 +90,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
 
           {mediaType === 'image' && (
             <img
-              src={mediaSrc}
+              src={activeSrc}
               alt={title}
               className="w-full h-full object-contain"
             />
@@ -91,14 +98,14 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
         </div>
 
         {/* Video Gallery Carousel (if available) */}
-        {videoList.length > 0 && (
+        {activeList.length > 0 && (
           <div className="p-3 bg-[#0e1c3b]/80 border-t border-[#09a4c7]/40">
             <div className="text-[11px] font-mono text-gray-400 mb-2 uppercase tracking-wider">
               NOW PLAYING / SELECT TRANSMISSION:
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
-              {videoList.map((vid) => {
-                const isActive = vid.src === mediaSrc;
+              {activeList.map((vid) => {
+                const isActive = vid.src === activeSrc;
                 return (
                   <button
                     key={vid.title}

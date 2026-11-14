@@ -1,13 +1,13 @@
 import React from 'react';
 import { SpideyPin, FilterState } from '../types';
 import { soundManager } from '../services/soundManager';
-import { X, Info, CheckCircle2, AlertCircle, Video, PartyPopper } from 'lucide-react';
+import { X, Info } from 'lucide-react';
 
 interface ActivityLogDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   pins: SpideyPin[];
-  filters: FilterState;
+  filters?: FilterState;
   onSelectPin: (pin: SpideyPin) => void;
 }
 
@@ -15,7 +15,7 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({
   isOpen,
   onClose,
   pins,
-  filters,
+  filters = { confirmed: true, rumored: true, watchParty: true, events: true },
   onSelectPin
 }) => {
   const [showInfo, setShowInfo] = React.useState(false);
@@ -24,9 +24,10 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({
 
   // Filter and sort sightings chronologically
   const filteredPins = pins.filter((p) => {
-    if (p.pinType === 'confirmed' && !filters.confirmed) return false;
-    if (p.pinType === 'rumored' && !filters.rumored) return false;
-    if (p.pinType === 'watchParty' && !filters.watchParty) return false;
+    const type = (p.pinTypeOverride || p.pinType || p.type || '').toLowerCase();
+    if (type === 'confirmed' && !filters.confirmed) return false;
+    if (type === 'rumored' && !filters.rumored) return false;
+    if (type.includes('watch') && !filters.watchParty) return false;
     return true;
   });
 
@@ -143,7 +144,7 @@ export const ActivityLogDrawer: React.FC<ActivityLogDrawerProps> = ({
                 </h3>
 
                 <p className="text-[10px] text-gray-400 truncate mt-0.5">
-                  {pin.watchPartyCopy || `Coordinates: ${pin.lat.toFixed(2)}, ${pin.lng.toFixed(2)}`}
+                  {pin.watchPartyCopy || `Coordinates: ${pin.lat?.toFixed(2) || '40.71'}, ${pin.lng?.toFixed(2) || '-74.00'}`}
                 </p>
               </div>
             </div>

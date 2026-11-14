@@ -7,8 +7,9 @@ interface EventsDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   events: EventItem[];
-  onFlyTo: (lat: number, lng: number, title: string) => void;
+  onFlyTo?: (lat: number, lng: number, title: string) => void;
   onOpenVideo?: (videoUrl: string, title: string) => void;
+  onSelectEvent?: (event: EventItem) => void;
 }
 
 export const EventsDrawer: React.FC<EventsDrawerProps> = ({
@@ -16,7 +17,8 @@ export const EventsDrawer: React.FC<EventsDrawerProps> = ({
   onClose,
   events,
   onFlyTo,
-  onOpenVideo
+  onOpenVideo,
+  onSelectEvent
 }) => {
   if (!isOpen) return null;
 
@@ -110,8 +112,9 @@ export const EventsDrawer: React.FC<EventsDrawerProps> = ({
               <div className="flex items-center gap-2 pt-1 border-t border-gray-800">
                 <button
                   onClick={() => {
-                    soundManager.playCategory('events');
-                    onFlyTo(event.location.lat, event.location.lng, event.name);
+                    soundManager.playBeep(850, 0.05);
+                    onFlyTo?.(event.location.lat, event.location.lng, event.name);
+                    onSelectEvent?.(event);
                     onClose();
                   }}
                   className="flex-1 py-1.5 px-3 bg-[#09a4c7] hover:bg-[#96e0f7] text-black font-bold text-xs rounded transition-colors text-center cursor-pointer"

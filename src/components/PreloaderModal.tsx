@@ -3,13 +3,19 @@ import { Volume2, VolumeX, Terminal } from 'lucide-react';
 import { soundManager } from '../services/soundManager';
 
 interface PreloaderModalProps {
+  isOpen?: boolean;
   onComplete: (soundChoice: boolean) => void;
 }
 
-export const PreloaderModal: React.FC<PreloaderModalProps> = ({ onComplete }) => {
+export const PreloaderModal: React.FC<PreloaderModalProps> = ({
+  isOpen = true,
+  onComplete
+}) => {
   const [bootLines, setBootLines] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
+
+  if (!isOpen) return null;
 
   const lines = [
     "INITIALIZING SPIDEY TRACKER v4.2.0...",
