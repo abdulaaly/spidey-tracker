@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { SpideyPin, EventItem, VillainItem, VideoItem, FilterState } from '../types';
-import { INITIAL_PINS, INITIAL_EVENTS, INITIAL_VILLAINS, INITIAL_VIDEOS } from '../data/initialData';
+import {
+  SpideyPin,
+  EventItem,
+  VillainItem,
+  VideoItem,
+  FilterState,
+  UserReport
+} from '../types';
 import { soundManager } from '../services/soundManager';
+import { INITIAL_PINS, INITIAL_EVENTS, INITIAL_VILLAINS, INITIAL_VIDEOS } from '../data/initialData';
 import { FifteenSliceFrame } from '../components/FifteenSliceFrame';
 import { MainUIPanel } from '../components/MainUIPanel';
 import { RadarWidget } from '../components/RadarWidget';
@@ -76,25 +83,33 @@ export default function Home() {
 
   // Load Data on Mount
   useEffect(() => {
-    // 1. Fetch main.json
-    fetch('/data/main.json')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.spideyPins) setPins(data.spideyPins);
-        if (data.webwatch?.articles) setVillains(data.webwatch.articles);
-        if (data.videoGallery?.videos) setVideos(data.videoGallery.videos);
+    // 1. Fetch main pins and intel from Next.js API or static fallback
+    fetch('/api/main')
+      .then((res) => {
+        if (!res.ok) throw new Error('API route unavailable');
+        return res.json();
       })
-      .catch((err) => console.error('Failed to load main.json:', err));
-
-    // 2. Fetch events.php.json
-    fetch('/data/events.php.json')
-      .then((res) => res.json())
+      .catch(() => fetch('/data/main.json').then((r) => r.json()))
       .then((data) => {
-        if (data.events?.global) {
+        if (data?.spideyPins) setPins(data.spideyPins);
+        if (data?.webwatch?.articles) setVillains(data.webwatch.articles);
+        if (data?.videoGallery?.videos) setVideos(data.videoGallery.videos);
+      })
+      .catch((err) => console.log('Using compiled static initial data:', err.message));
+
+    // 2. Fetch events from Next.js API or static fallback
+    fetch('/api/events')
+      .then((res) => {
+        if (!res.ok) throw new Error('API route unavailable');
+        return res.json();
+      })
+      .catch(() => fetch('/data/events.php.json').then((r) => r.json()))
+      .then((data) => {
+        if (data?.events?.global) {
           setEvents(data.events.global);
         }
       })
-      .catch((err) => console.error('Failed to load events:', err));
+      .catch((err) => console.log('Using compiled static events data:', err.message));
   }, []);
 
   // Filter Toggle
@@ -103,203 +118,193 @@ export default function Home() {
       ...prev,
       [key]: !prev[key]
     }));
+    soundManager.playBeep(650, 0.08);
   };
 
   // Sound Toggle
   const handleToggleSound = () => {
-    const next = !soundEnabled;
-    soundManager.setEnabled(next);
-    setSoundEnabled(next);
-    if (next) soundManager.playCategory('notification');
-  };
-
-  // Pin Click from Map or Log
-  const handleSelectPin = (pin: SpideyPin) => {
-    setFlyToTarget({ lat: pin.lat, lng: pin.lng, zoom: 8 });
-
-    // Open appropriate media
-    if (pin.watchPartyLink) {
-      setLightboxState({
-        isOpen: true,
-        mediaType: 'youtube',
-        src: pin.watchPartyLink,
-        title: pin.title
-      });
-    } else if (pin.imageSrc) {
-      setLightboxState({
-        isOpen: true,
-        mediaType: 'image',
-        src: pin.imageSrc,
-        title: pin.title
-      });
+    const nextState = !soundEnabled;
+    setSoundEnabled(nextState);
+    soundManager.setEnabled(nextState);
+    if (nextState) {
+      soundManager.playBeep(880, 0.12);
     }
   };
 
-  // Fly to Event Location
-  const handleFlyToEvent = (lat: number, lng: number, title: string) => {
-    setFlyToTarget({ lat, lng, zoom: 10 });
-    setTickerText(`FOCUSING SENSOR ARRAY ON EVENT: ${title.toUpperCase()}`);
-  };
-
-  // Radar: Zoom Global
-  const handleZoomGlobal = () => {
-    setFlyToTarget({ lat: 20, lng: 0, zoom: 2 });
-    setTickerText('SENSOR ARRAY RESET: GLOBAL PROJECTION ACTIVE');
-  };
-
-  // Radar: Center Neighborhood
-  const handleCenterNeighborhood = () => {
-    if (typeof window !== 'undefined' && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setFlyToTarget({
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
-            zoom: 12
-          });
-          setTickerText('SENSOR ARRAY LOCKED: LOCAL NEIGHBORHOOD SIGHTINGS');
-        },
-        () => {
-          // Default fallback to Queens / NYC
-          setFlyToTarget({ lat: 40.7282, lng: -73.7949, zoom: 12 });
-          setTickerText('NEIGHBORHOOD COORDINATE RESOLVED: QUEENS, NY');
-        }
-      );
-    } else {
-      setFlyToTarget({ lat: 40.7282, lng: -73.7949, zoom: 12 });
+  // Preloader Complete Handler
+  const handlePreloaderComplete = (withAudio: boolean) => {
+    setPreloaderActive(false);
+    setSoundEnabled(withAudio);
+    soundManager.setEnabled(withAudio);
+    if (withAudio) {
+      soundManager.playFanfare();
     }
   };
 
-  // User submitted sighting
-  const handleAddSighting = (newPin: SpideyPin) => {
+  // FlyTo Map Location
+  const handleNavigateTo = (lat: number, lng: number, zoom = 14) => {
+    setFlyToTarget({ lat, lng, zoom });
+    soundManager.playBeep(920, 0.09);
+  };
+
+  // Lightbox Opener
+  const handleOpenLightbox = (mediaType: 'youtube' | 'video' | 'image', src: string, title: string) => {
+    setLightboxState({
+      isOpen: true,
+      mediaType,
+      src,
+      title
+    });
+    soundManager.playWhoosh();
+  };
+
+  // User Sighting Report Submission
+  const handleAddUserReport = (report: UserReport) => {
+    const newPin: SpideyPin = {
+      id: report.id,
+      title: report.title,
+      type: report.type,
+      location: {
+        address: report.address,
+        lat: report.lat,
+        lng: report.lng
+      },
+      description: report.description,
+      datetime: report.timestamp,
+      highlighted: true,
+      hidePin: false,
+      attachments: {
+        images: report.imageUrl ? [report.imageUrl] : [],
+        videos: []
+      }
+    };
+
     setPins((prev) => [newPin, ...prev]);
-    setFlyToTarget({ lat: newPin.lat, lng: newPin.lng, zoom: 10 });
-    setTickerText(`NEW SIGHTING TRANSMITTED: ${newPin.title.toUpperCase()}`);
+    setTickerText(`NEW SIGHTING TRANSMITTED • ${report.title.toUpperCase()} AT ${report.address.toUpperCase()}`);
+    handleNavigateTo(report.lat, report.lng, 15);
   };
 
   return (
-    <main className="relative w-screen h-screen bg-black overflow-hidden font-sans select-none">
-      {/* 15-Slice Tactical Cyber Frame */}
+    <main className="w-screen h-screen overflow-hidden bg-[#06080e] select-none text-[#96e0f7] relative">
+      {/* 15-Slice Tactical Container Frame */}
       <FifteenSliceFrame>
-        {/* Full-bleed Map Engine in viewport */}
-        <MapEngine
-          pins={pins}
-          filters={filters}
-          onSelectPin={handleSelectPin}
-          onViewportChange={(center, zoom) => {
-            setMapCenter(center);
-            setMapZoom(zoom);
-          }}
-          flyToTarget={flyToTarget}
-        />
-
-        {/* Top HUD Controls & Marquee Ticker */}
+        {/* Top Tactical HUD Panel */}
         <MainUIPanel
+          tickerText={tickerText}
           filters={filters}
           onToggleFilter={handleToggleFilter}
-          onOpenActivityLog={() => setIsActivityLogOpen(true)}
-          onOpenWebWatch={() => setIsWebWatchOpen(true)}
-          onOpenEvents={() => setIsEventsOpen(true)}
-          onOpenVideos={() => {
-            if (videos.length > 0) {
-              setLightboxState({
-                isOpen: true,
-                mediaType: 'youtube',
-                src: videos[0].src,
-                title: videos[0].title
-              });
-            }
-          }}
-          onOpenHelp={() => setIsHelpOpen(true)}
-          onOpenReport={() => setIsReportOpen(true)}
           soundEnabled={soundEnabled}
           onToggleSound={handleToggleSound}
-          tickerText={tickerText}
+          onOpenHelp={() => {
+            setIsHelpOpen(true);
+            soundManager.playWhoosh();
+          }}
+          onOpenLog={() => {
+            setIsActivityLogOpen(true);
+            soundManager.playWhoosh();
+          }}
+          onOpenEvents={() => {
+            setIsEventsOpen(true);
+            soundManager.playWhoosh();
+          }}
+          onOpenWebWatch={() => {
+            setIsWebWatchOpen(true);
+            soundManager.playWhoosh();
+          }}
+          onOpenReport={() => {
+            setIsReportOpen(true);
+            soundManager.playWhoosh();
+          }}
         />
 
-        {/* Tactical Radar Sweep Widget (Bottom Right) */}
-        <RadarWidget
-          pins={pins}
-          center={mapCenter}
-          zoom={mapZoom}
-          onZoomGlobal={handleZoomGlobal}
-          onCenterNeighborhood={handleCenterNeighborhood}
-        />
+        {/* Viewport Area: Map Engine + Tactical Radar Overlay */}
+        <div className="relative w-full h-[calc(100vh-140px)] min-h-[500px]">
+          {/* Spatial Map Engine */}
+          <MapEngine
+            pins={pins}
+            events={events}
+            filters={filters}
+            center={mapCenter}
+            zoom={mapZoom}
+            flyToTarget={flyToTarget}
+            onOpenLightbox={handleOpenLightbox}
+            onSelectPin={(pin) => {
+              setTickerText(`TARGET LOCKED: ${pin.title.toUpperCase()} • ${pin.location.address.toUpperCase()}`);
+              soundManager.playRadarPing();
+            }}
+          />
 
-        {/* Legal & Credits Bar (Bottom) */}
+          {/* Tactical Sweep Radar */}
+          <RadarWidget
+            pins={pins}
+            center={mapCenter}
+            onSelectTarget={(pin) => {
+              handleNavigateTo(pin.location.lat, pin.location.lng, 15);
+            }}
+          />
+        </div>
+
+        {/* Tactical Footer & Legal Bar */}
         <FooterLegal />
       </FifteenSliceFrame>
 
-      {/* Drawers & Modals */}
+      {/* Slide-out Activity Log Drawer (Left) */}
       <ActivityLogDrawer
         isOpen={isActivityLogOpen}
         onClose={() => setIsActivityLogOpen(false)}
         pins={pins}
-        filters={filters}
         onSelectPin={(pin) => {
-          handleSelectPin(pin);
           setIsActivityLogOpen(false);
+          handleNavigateTo(pin.location.lat, pin.location.lng, 15);
         }}
       />
 
+      {/* Slide-out Events Drawer (Right) */}
       <EventsDrawer
         isOpen={isEventsOpen}
         onClose={() => setIsEventsOpen(false)}
         events={events}
-        onFlyTo={handleFlyToEvent}
-        onOpenVideo={(src, title) => {
-          setLightboxState({
-            isOpen: true,
-            mediaType: src.endsWith('.mp4') ? 'video' : 'youtube',
-            src,
-            title
-          });
+        onSelectEvent={(evt) => {
+          setIsEventsOpen(false);
+          handleNavigateTo(evt.location.lat, evt.location.lng, 15);
         }}
       />
 
+      {/* Villain Dossier Carousel Modal (Web Watch 1.5) */}
       <WebWatchModal
         isOpen={isWebWatchOpen}
         onClose={() => setIsWebWatchOpen(false)}
         villains={villains}
       />
 
+      {/* Media Lightbox */}
       <LightboxModal
         isOpen={lightboxState.isOpen}
-        onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
         mediaType={lightboxState.mediaType}
-        mediaSrc={lightboxState.src}
+        src={lightboxState.src}
         title={lightboxState.title}
-        videoList={videos}
-        onSelectVideo={(vid) => {
-          setLightboxState({
-            isOpen: true,
-            mediaType: 'youtube',
-            src: vid.src,
-            title: vid.title
-          });
-        }}
+        playlist={videos}
+        onClose={() => setLightboxState((prev) => ({ ...prev, isOpen: false }))}
       />
 
+      {/* Tactical Help / Operator Guide Modal */}
       <HelpScreenModal
         isOpen={isHelpOpen}
         onClose={() => setIsHelpOpen(false)}
       />
 
+      {/* Sighting Submission Modal */}
       <ReportSightingModal
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
-        onSubmitSighting={handleAddSighting}
+        onSubmitReport={handleAddUserReport}
       />
 
-      {/* Initial Boot Sequence / Preloader */}
-      {preloaderActive && (
-        <PreloaderModal
-          onComplete={(soundChoice) => {
-            setSoundEnabled(soundChoice);
-            setPreloaderActive(false);
-          }}
-        />
-      )}
+      {/* Terminal Preloader & Audio Permission Modal */}
+      <PreloaderModal
+        isOpen={preloaderActive}
+        onComplete={handlePreloaderComplete}
+      />
     </main>
   );
 }
