@@ -1,37 +1,53 @@
-import React, { useEffect, useRef } from 'react';
+'use client';
+
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { SpideyPin, FilterState } from '../types';
+import { SpideyPin, EventItem, FilterState } from '../types';
+import { NetworkSpider, WORLDWIDE_SPIDERS } from '../data/spiders';
+import { TrackerViewMode } from './EnhancedHUDHeader';
 import { soundManager } from '../services/soundManager';
-import { Compass, RotateCw, RotateCcw, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown, RotateCw, RotateCcw } from 'lucide-react';
 
 interface MapEngineProps {
   pins: SpideyPin[];
+  events: EventItem[];
+  spiders?: NetworkSpider[];
   filters: FilterState;
-  onSelectPin: (pin: SpideyPin) => void;
-  onViewportChange: (center: { lat: number; lng: number }, zoom: number) => void;
-  flyToTarget: { lat: number; lng: number; zoom?: number } | null;
+  viewMode?: TrackerViewMode;
+  center?: { lat: number; lng: number };
+  zoom?: number;
+  flyToTarget?: { lat: number; lng: number; zoom?: number } | null;
+  onOpenLightbox?: (mediaType: 'youtube' | 'video' | 'image', src: string, title: string) => void;
+  onSelectPin?: (pin: SpideyPin) => void;
+  onSelectEvent?: (event: EventItem) => void;
+  onSelectSpider?: (spider: NetworkSpider) => void;
 }
 
 export const MapEngine: React.FC<MapEngineProps> = ({
   pins,
+  events,
+  spiders = WORLDWIDE_SPIDERS,
   filters,
+  viewMode = 'UNIFIED',
+  flyToTarget,
+  onOpenLightbox,
   onSelectPin,
-  onViewportChange,
-  flyToTarget
+  onSelectEvent,
+  onSelectSpider
 }) => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const [tilt, setTilt] = React.useState<number>(0);
-  const [rotation, setRotation] = React.useState<number>(0);
+  const [tilt, setTilt] = useState<number>(0);
+  const [rotation, setRotation] = useState<number>(0);
 
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapInstanceRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
-      center: [20, 0],
-      zoom: 2.5,
+      center: [25, 10],
+      zoom: 2.8,
       minZoom: 2,
       maxZoom: 18,
       zoomControl: false,
@@ -44,18 +60,11 @@ export const MapEngine: React.FC<MapEngineProps> = ({
       subdomains: 'abcd',
     }).addTo(map);
 
-    // Zoom control at bottom left
     L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
     const markersGroup = L.layerGroup().addTo(map);
     markersLayerRef.current = markersGroup;
     mapInstanceRef.current = map;
-
-    // Viewport change listener
-    map.on('moveend zoomend', () => {
-      const center = map.getCenter();
-      onViewportChange({ lat: center.lat, lng: center.lng }, map.getZoom());
-    });
 
     return () => {
       map.remove();
@@ -68,140 +77,290 @@ export const MapEngine: React.FC<MapEngineProps> = ({
     if (!flyToTarget || !mapInstanceRef.current) return;
     mapInstanceRef.current.flyTo(
       [flyToTarget.lat, flyToTarget.lng],
-      flyToTarget.zoom || 8,
-      { duration: 1.5 }
+      flyToTarget.zoom || 14,
+      { duration: 1.4 }
     );
   }, [flyToTarget]);
 
-  // Update Markers according to filters
+  // Update Markers based on viewMode & filters
   useEffect(() => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
     const layer = markersLayerRef.current;
     layer.clearLayers();
 
-    const getPinIcon = (pin: SpideyPin) => {
-      let iconUrl = '/images/ui/map/red_pin.png';
-      if (pin.pinType === 'watchParty') iconUrl = '/images/ui/map/green_pin.png';
-      else if (pin.pinType === 'rumored') iconUrl = '/images/ui/map/white_pin.png';
-      else if (pin.pinType === 'event') iconUrl = '/images/ui/map/event_pin.png';
+    // 1. Render Official Sightings Pins (if MOVIE or UNIFIED)
+    if (viewMode === 'MOVIE' || viewMode === 'UNIFIED') {
+      pins.forEach((pin) => {
+        const type = (pin.type || 'confirmed').toLowerCase();
+        if (type === 'confirmed' && !filters.confirmed) return;
+        if (type === 'rumored' && !filters.rumored) return;
+        if (type.includes('watch') && !filters.watchParty) return;
 
-      return L.icon({
-        iconUrl,
-        iconSize: [28, 38],
-        iconAnchor: [14, 38],
-        popupAnchor: [0, -38]
-      });
-    };
+        let iconUrl = '/images/ui/map/red_pin.png';
+        if (type === 'rumored') iconUrl = '/images/ui/map/white_pin.png';
+        if (type.includes('watch')) iconUrl = '/images/ui/map/green_pin.png';
 
-    pins.forEach((pin) => {
-      // Check Filter
-      if (pin.pinType === 'confirmed' && !filters.confirmed) return;
-      if (pin.pinType === 'rumored' && !filters.rumored) return;
-      if (pin.pinType === 'watchParty' && !filters.watchParty) return;
-      if (pin.pinType === 'event' && !filters.events) return;
+        const customIcon = L.icon({
+          iconUrl,
+          iconSize: [28, 38],
+          iconAnchor: [14, 38],
+          popupAnchor: [0, -38]
+        });
 
-      const marker = L.marker([pin.lat, pin.lng], {
-        icon: getPinIcon(pin),
-        title: pin.title
-      });
+        const lat = pin.location?.lat || pin.lat;
+        const lng = pin.location?.lng || pin.lng;
+        if (lat === undefined || lng === undefined) return;
 
-      // Custom HUD Pin Card Popup
-      const thumb = pin.cardThumbImg || pin.imageSrc || '/images/shareImage/shareImage.jpg';
-      const ctaText =
-        pin.pinType === 'watchParty'
-          ? 'WATCH PARTY INFO'
-          : pin.pinType === 'event'
-          ? 'VIEW EVENT'
-          : 'VIEW SIGHTING';
+        const marker = L.marker([lat, lng], {
+          icon: customIcon,
+          title: pin.title
+        });
 
-      const popupHtml = `
-        <div class="pin-card-dyn bit-border-3step" style="width: 240px; background: #0e1c3b; color: #fff; padding: 10px; border: 2px solid #09a4c7; box-shadow: 0 0 15px rgba(9,164,199,0.5);">
-          ${thumb ? `<img src="${thumb}" style="width: 100%; height: 110px; object-fit: cover; margin-bottom: 8px; border: 1px solid #09a4c7;" />` : ''}
-          <div style="font-size: 11px; font-weight: bold; color: #96e0f7; text-transform: uppercase; margin-bottom: 4px;">
-            ● ${pin.pinType}
+        const thumb =
+          pin.attachments?.images?.[0] ||
+          '/images/shareImage/shareImage.jpg';
+
+        const popupHtml = `
+          <div style="width: 250px; background: #071426; border: 3px solid #020810; padding: 10px; font-family: monospace;">
+            <img src="${thumb}" style="width: 100%; height: 110px; object-fit: cover; border: 2px solid #000; margin-bottom: 6px;" />
+            <div style="font-size: 8px; color: #5ce1e6; font-weight: bold; text-transform: uppercase;">
+              ● ${pin.type?.toUpperCase() || 'OFFICIAL'} SIGHTING
+            </div>
+            <div style="font-size: 13px; font-weight: bold; color: #fff; margin: 4px 0 2px;">
+              ${pin.title}
+            </div>
+            <div style="font-size: 10px; color: #8fb8c4; margin-bottom: 8px;">
+              📍 ${pin.location?.address || pin.address || 'Classified Coordinates'}
+            </div>
+            <button id="pin-btn-${pin.id}" style="width: 100%; padding: 6px; background: #ffcc22; color: #000; font-weight: bold; font-size: 10px; border: 2px solid #000; cursor: pointer; text-transform: uppercase;">
+              INSPECT DOSSIER ➔
+            </button>
           </div>
-          <div style="font-size: 13px; font-weight: bold; margin-bottom: 8px; line-height: 1.2;">
-            ${pin.title}
+        `;
+
+        marker.bindPopup(popupHtml, { closeButton: true });
+        marker.on('popupopen', () => {
+          soundManager.playRadarPing();
+          const btn = document.getElementById(`pin-btn-${pin.id}`);
+          if (btn) {
+            btn.onclick = () => {
+              onSelectPin?.(pin);
+            };
+          }
+        });
+
+        layer.addLayer(marker);
+      });
+    }
+
+    // 2. Render Global Tour Event Pins (if MOVIE or UNIFIED)
+    if ((viewMode === 'MOVIE' || viewMode === 'UNIFIED') && filters.events) {
+      events.forEach((evt) => {
+        if (!evt.location) return;
+
+        const eventIcon = L.icon({
+          iconUrl: '/images/ui/map/event_pin.png',
+          iconSize: [30, 40],
+          iconAnchor: [15, 40],
+          popupAnchor: [0, -40]
+        });
+
+        const marker = L.marker([evt.location.lat, evt.location.lng], {
+          icon: eventIcon,
+          title: evt.name
+        });
+
+        const thumb =
+          evt.cardThumbImg ||
+          evt.attachments?.images?.[0] ||
+          '/images/shareImage/shareImage.jpg';
+
+        const hasVideo = (evt.attachments?.videos?.length ?? 0) > 0;
+        const videoSrc = evt.attachments?.videos?.[0]?.src;
+
+        const popupHtml = `
+          <div style="width: 250px; background: #071426; border: 3px solid #020810; padding: 10px; font-family: monospace;">
+            <img src="${thumb}" style="width: 100%; height: 110px; object-fit: cover; border: 2px solid #000; margin-bottom: 6px;" />
+            <div style="font-size: 8px; color: #ffe066; font-weight: bold; text-transform: uppercase;">
+              ★ GLOBAL TOUR ACTIVATION
+            </div>
+            <div style="font-size: 13px; font-weight: bold; color: #fff; margin: 4px 0 2px;">
+              ${evt.name}
+            </div>
+            <div style="font-size: 10px; color: #8fb8c4; margin-bottom: 8px;">
+              📍 ${evt.location.address}
+            </div>
+            ${
+              hasVideo
+                ? `<button id="evt-btn-${evt.id}" style="width: 100%; padding: 6px; background: #e53935; color: #fff; font-weight: bold; font-size: 10px; border: 2px solid #000; cursor: pointer; text-transform: uppercase;">
+                    ▶ PLAY PREMIERE FOOTAGE
+                  </button>`
+                : `<button id="evt-btn-${evt.id}" style="width: 100%; padding: 6px; background: #3a8fd4; color: #fff; font-weight: bold; font-size: 10px; border: 2px solid #000; cursor: pointer; text-transform: uppercase;">
+                    VIEW ACTIVATION DETAILS
+                  </button>`
+            }
           </div>
-          <button id="popup-btn-${pin.id}" style="width: 100%; padding: 6px; background: #09a4c7; color: #000; font-weight: bold; font-size: 12px; border: none; cursor: pointer; text-transform: uppercase;">
-            ${ctaText}
-          </button>
-        </div>
-      `;
+        `;
 
-      marker.bindPopup(popupHtml, {
-        closeButton: true,
-        className: 'spidey-popup'
+        marker.bindPopup(popupHtml, { closeButton: true });
+        marker.on('popupopen', () => {
+          soundManager.playRadarPing();
+          const btn = document.getElementById(`evt-btn-${evt.id}`);
+          if (btn) {
+            btn.onclick = () => {
+              if (hasVideo && videoSrc && onOpenLightbox) {
+                onOpenLightbox('video', videoSrc, evt.name);
+              } else {
+                onSelectEvent?.(evt);
+              }
+            };
+          }
+        });
+
+        layer.addLayer(marker);
       });
+    }
 
-      marker.on('popupopen', () => {
-        soundManager.playCategory('notification');
-        const btn = document.getElementById(`popup-btn-${pin.id}`);
-        if (btn) {
-          btn.onclick = () => {
-            onSelectPin(pin);
-          };
-        }
+    // 3. Render Worldwide Network Spiders (if GADGET or UNIFIED)
+    if (viewMode === 'GADGET' || viewMode === 'UNIFIED') {
+      spiders.forEach((spider) => {
+        const spiderHtml = `
+          <div class="map-spidey-pin">
+            <div class="map-spidey-pin__orb-wrap">
+              <div class="map-spidey-pin__orb" style="background: #0a1a2e; border: 2px solid #5ce1e6;">
+                <span style="font-size: 16px;">🕷️</span>
+              </div>
+            </div>
+            <div class="map-spidey-pin__label" style="color: #ffcc22; font-family: monospace;">
+              ${spider.codename.slice(0, 14)}
+            </div>
+          </div>
+        `;
+
+        const spiderDivIcon = L.divIcon({
+          html: spiderHtml,
+          className: 'custom-spider-marker',
+          iconSize: [44, 48],
+          iconAnchor: [22, 48],
+          popupAnchor: [0, -48]
+        });
+
+        const marker = L.marker([spider.location.lat, spider.location.lng], {
+          icon: spiderDivIcon,
+          title: spider.codename
+        });
+
+        const popupHtml = `
+          <div style="width: 240px; background: #071426; border: 3px solid #020810; padding: 10px; font-family: monospace;">
+            <div style="font-size: 8px; color: #6fc041; font-weight: bold;">
+              ● SPIDER-NET ACTIVE HERO [LVL ${spider.level}]
+            </div>
+            <div style="font-size: 13px; font-weight: bold; color: #ffcc22; margin: 4px 0 2px;">
+              ${spider.codename}
+            </div>
+            <div style="font-size: 11px; color: #fff;">
+              Operator: ${spider.realName}
+            </div>
+            <div style="font-size: 10px; color: #8fb8c4; margin-bottom: 6px;">
+              📍 ${spider.city}, ${spider.country}
+            </div>
+            <div style="font-size: 9px; color: #5ce1e6; margin-bottom: 8px;">
+              STATUS: ${spider.status} · SIGNAL: ${spider.signalStrength}%
+            </div>
+            <button id="spider-btn-${spider.id}" style="width: 100%; padding: 6px; background: #6fc041; color: #000; font-weight: bold; font-size: 10px; border: 2px solid #000; cursor: pointer; text-transform: uppercase;">
+              LOCK TARGET & COMMUNICATE
+            </button>
+          </div>
+        `;
+
+        marker.bindPopup(popupHtml, { closeButton: true });
+        marker.on('popupopen', () => {
+          soundManager.playSignal();
+          const btn = document.getElementById(`spider-btn-${spider.id}`);
+          if (btn) {
+            btn.onclick = () => {
+              onSelectSpider?.(spider);
+            };
+          }
+        });
+
+        layer.addLayer(marker);
       });
-
-      marker.on('click', () => {
-        soundManager.playCategory('activity');
-      });
-
-      layer.addLayer(marker);
-    });
-  }, [pins, filters, onSelectPin]);
+    }
+  }, [pins, events, spiders, filters, viewMode, onSelectPin, onSelectEvent, onSelectSpider, onOpenLightbox]);
 
   return (
-    <div className="relative w-full h-full">
-      {/* Map Viewport with Simulated 3D Perspective Tilt/Rotation */}
-      <div 
-        ref={mapContainerRef} 
+    <div className="relative w-full h-full overflow-hidden">
+      {/* 3D Map Perspective Container */}
+      <div
+        ref={mapContainerRef}
         className="w-full h-full transition-transform duration-300 ease-out"
         style={{
-          transform: `perspective(900px) rotateX(${tilt}deg) rotateZ(${rotation}deg)`
+          transform: `perspective(1000px) rotateX(${tilt}deg) rotateZ(${rotation}deg)`
         }}
       />
 
-      {/* 3D Perspective HUD Controls (Top Right Overlay) */}
-      <div className="absolute top-28 right-6 z-20 flex flex-col gap-1.5 items-center bg-black/60 p-1.5 rounded border border-[#09a4c7]/40">
-        <div className="text-[10px] font-mono text-[#96e0f7] tracking-wider mb-1">
-          HUD 3D
-        </div>
+      {/* 3D Camera & Orientation Controls */}
+      <div className="absolute top-4 right-4 z-20 flex flex-col gap-1.5 items-center bg-[#071426]/90 p-2 border-2 border-black shadow-[3px_3px_0_#000]">
+        <span className="font-pixel text-[7px] text-[#5ce1e6] tracking-wider mb-1">
+          CAMERA 3D
+        </span>
         <button
-          onClick={() => setTilt(prev => Math.min(prev + 10, 45))}
-          title="Tilt Up"
-          className="w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] hover:text-black text-[#96e0f7] border border-[#09a4c7] rounded flex items-center justify-center transition-colors cursor-pointer"
+          type="button"
+          onClick={() => {
+            setTilt((prev) => Math.min(prev + 10, 45));
+            soundManager.playBeep(850, 0.04);
+          }}
+          title="Tilt Pitch Up"
+          className="w-7 h-7 bg-[#0a1a2e] hover:bg-[#3a8fd4] hover:text-black text-[#5ce1e6] border-2 border-black flex items-center justify-center cursor-pointer transition-colors"
         >
           <ArrowUp size={14} />
         </button>
         <div className="flex gap-1">
           <button
-            onClick={() => setRotation(prev => prev - 15)}
-            title="Rotate Counter-Clockwise"
-            className="w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] hover:text-black text-[#96e0f7] border border-[#09a4c7] rounded flex items-center justify-center transition-colors cursor-pointer"
+            type="button"
+            onClick={() => {
+              setRotation((prev) => prev - 15);
+              soundManager.playBeep(850, 0.04);
+            }}
+            title="Rotate Left"
+            className="w-7 h-7 bg-[#0a1a2e] hover:bg-[#3a8fd4] hover:text-black text-[#5ce1e6] border-2 border-black flex items-center justify-center cursor-pointer transition-colors"
           >
             <RotateCcw size={14} />
           </button>
           <button
-            onClick={() => setRotation(prev => prev + 15)}
-            title="Rotate Clockwise"
-            className="w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] hover:text-black text-[#96e0f7] border border-[#09a4c7] rounded flex items-center justify-center transition-colors cursor-pointer"
+            type="button"
+            onClick={() => {
+              setRotation((prev) => prev + 15);
+              soundManager.playBeep(850, 0.04);
+            }}
+            title="Rotate Right"
+            className="w-7 h-7 bg-[#0a1a2e] hover:bg-[#3a8fd4] hover:text-black text-[#5ce1e6] border-2 border-black flex items-center justify-center cursor-pointer transition-colors"
           >
             <RotateCw size={14} />
           </button>
         </div>
         <button
-          onClick={() => setTilt(prev => Math.max(prev - 10, 0))}
-          title="Tilt Down"
-          className="w-7 h-7 bg-[#0e1c3b] hover:bg-[#09a4c7] hover:text-black text-[#96e0f7] border border-[#09a4c7] rounded flex items-center justify-center transition-colors cursor-pointer"
+          type="button"
+          onClick={() => {
+            setTilt((prev) => Math.max(prev - 10, 0));
+            soundManager.playBeep(850, 0.04);
+          }}
+          title="Tilt Pitch Down"
+          className="w-7 h-7 bg-[#0a1a2e] hover:bg-[#3a8fd4] hover:text-black text-[#5ce1e6] border-2 border-black flex items-center justify-center cursor-pointer transition-colors"
         >
           <ArrowDown size={14} />
         </button>
         {(tilt !== 0 || rotation !== 0) && (
           <button
-            onClick={() => { setTilt(0); setRotation(0); }}
-            className="mt-1 text-[9px] px-1.5 py-0.5 bg-red-900/60 hover:bg-red-800 text-white rounded cursor-pointer"
+            type="button"
+            onClick={() => {
+              setTilt(0);
+              setRotation(0);
+              soundManager.playSignal();
+            }}
+            title="Reset Perspective"
+            className="text-[7px] font-pixel px-1.5 py-1 bg-[#e53935] text-white border border-black mt-1"
           >
             RESET
           </button>
